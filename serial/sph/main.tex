@@ -1,0 +1,105 @@
+\documentclass[10pt, leqno]{article} %% use to set typesize 
+\usepackage{amsfonts, amsmath}
+\usepackage{fancyhdr}
+\usepackage[
+  letterpaper=true,
+  colorlinks=true,
+  linkcolor=red,
+  citecolor=red,
+  pdfpagemode=None]{hyperref}
+\usepackage{graphicx}
+\usepackage{color}
+
+\usepackage{tikz}
+\usepackage{pgfplots}
+\usepackage{listings}
+
+\newcommand{\bbR}{\mathbb{R}}
+\newcommand{\bfr}{\mathbf{r}}
+\newcommand{\bfv}{\mathbf{v}}
+\newcommand{\bfa}{\mathbf{a}}
+\newcommand{\bff}{\mathbf{f}}
+\newcommand{\bfg}{\mathbf{g}}
+\newcommand{\Wps}{W_{\mathrm{poly6}}}
+\newcommand{\Wsp}{W_{\mathrm{spiky}}}
+\newcommand{\Wvi}{W_{\mathrm{viscosity}}}
+
+\newcommand{\matlab}{\textsc{Matlab}}
+
+\lstset{language=c,columns=flexible}
+
+\begin{document}
+
+\pagestyle{fancy}
+\lhead{Bindel, Fall 2011}
+\rhead{Applications of Parallel Computers (CS 5220)}
+\fancyfoot{}
+
+\section{The SPH equations}
+
+Smoothed particle hydrodynamics (SPH) is a particle-based method for
+simulating the behavior of fluids.  Each computational particle
+carries along information about the fluid in a little region, such as
+the velocity and density; and during the course of the simulation,
+these particles interact with each other in a way that models the
+dynamics of a fluid.  In this project, we will tune a simple 2D version of an
+SPH method described by M\"uller et al for use in interactive
+graphics~\cite{muller}.
+
+Our simulation basically solves a system of ordinary differential
+equations\footnote{%
+  We describe the derivation of the 2D equations in a separate document.
+  It may interest those of you who care about fluid dynamics, but it is
+  not critical to understand the derivation in order to do the assignment.
+}
+for a collection of particles with equal masses $m$ and
+interaction radii $h$.  Each particle $i$ has a position $\bfr_i$,
+a velocity $\bfv_i$, and a density $\rho_i$.  Particle $i$ interacts
+with the set $N_i$ of particles within radius $h$ of $i$.
+The density is computed at each step by
+\[
+  \rho_i = \frac{4m}{\pi h^8} \sum_{j \in N_i} (h^2 - r^2)^3.
+\]
+The acceleration is computed by the rule
+\[
+  \bfa_i = \frac{1}{\rho_i} \sum_{j \in N_i} \bff_{ij}^{\mathrm{interact}} + \bfg,
+\]
+where
+\[
+  \bff_{ij}^{\mathrm{interact}} =
+  \frac{m_j}{\pi h^4 \rho_j} (1-q_{ij}) \left[
+    15k (\rho_i + \rho_j - 2 \rho_0) \frac{(1-q_{ij})}{q_{ij}} \bfr_{ij} -
+    40\mu \bfv_{ij}
+  \right],
+\]
+where $\bfr_{ij} = \bfr_i-\bfr_j$, $\bfv_{ij} = \bfv_i-\bfv_j$,
+and $q_{ij} = \|\bfr_{ij}\|/h$.  The parameters in these expressions are
+\begin{align*}
+  \rho_0 &= \mbox{reference mass density} \\
+  k      &= \mbox{bulk modulus} \\
+  \mu    &= \mbox{viscosity} \\
+  \bfg   &= \mbox{gravitational vector}
+\end{align*}
+By default, we choose most of these parameters to be appropriate to a liquid
+like water.  The exception is the bulk modulus, which is chosen so that the
+computational speed of sound
+\[
+  c_s = \sqrt{\frac{k}{\rho_0}}
+\]
+is large relative to the typical velocities we expect to see in the
+simulation, but not too large.  Choosing $k$ to be very large (e.g.~on
+the scale of the bulk modulus for water) severely limits the time step
+size needed for stable simulation.
+
+\input{codes.tex}
+
+\begin{thebibliography}{10}
+
+\bibitem{muller}
+{\sc M. M\"uller, D. Charypar, and M. Gross}.
+{\em Particle-based fluid simulation for interactive applications},
+in Proceedings of Eurographics/SIGGRAPH Symposium on Computer Animation.
+
+\end{thebibliography}
+
+\end{document}

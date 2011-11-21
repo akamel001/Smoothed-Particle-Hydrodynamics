@@ -1,0 +1,225 @@
+\documentclass[10pt, leqno]{article} %% use to set typesize 
+\usepackage{amsfonts, amsmath}
+\usepackage{fancyhdr}
+\usepackage[
+  letterpaper=true,
+  colorlinks=true,
+  linkcolor=red,
+  citecolor=red,
+  pdfpagemode=None]{hyperref}
+\usepackage{graphicx}
+\usepackage{color}
+
+\usepackage{tikz}
+\usepackage{pgfplots}
+\usepackage{listings}
+
+\newcommand{\bbR}{\mathbb{R}}
+\newcommand{\bfr}{\mathbf{r}}
+\newcommand{\bfv}{\mathbf{v}}
+\newcommand{\bfa}{\mathbf{a}}
+\newcommand{\bff}{\mathbf{f}}
+\newcommand{\bfg}{\mathbf{g}}
+\newcommand{\bft}{\mathbf{t}}
+\newcommand{\bfn}{\mathbf{n}}
+\newcommand{\Wps}{W_{\mathrm{poly6}}}
+\newcommand{\Wsp}{W_{\mathrm{spiky}}}
+\newcommand{\Wvi}{W_{\mathrm{viscosity}}}
+\newcommand{\fWps}{f_{\mathrm{poly6}}}
+\newcommand{\fWsp}{f_{\mathrm{spiky}}}
+\newcommand{\fWvi}{f_{\mathrm{viscosity}}}
+
+\newcommand{\matlab}{\textsc{Matlab}}
+
+\lstset{language=c,columns=flexible}
+
+\begin{document}
+
+\pagestyle{fancy}
+\lhead{Bindel, Fall 2011}
+\rhead{Applications of Parallel Computers (CS 5220)}
+\fancyfoot{}
+
+\section{Deriving SPH}
+
+The Navier-Stokes equations with gravity are
+\[
+  \rho \bfa = -\nabla p + \mu \nabla^2 \bfv + \rho \bfg.
+\]
+The acceleration is the material derivative of velocity, and we
+usually take an Eulerian perspective and write this as
+\[
+  \bfa 
+  = \frac{D\bfv}{Dt}
+  = \frac{\partial \bfv}{\partial t} + \bfv \cdot \nabla \bfv.
+\]
+In smoothed particle hydrodynamics, though, we take a Lagrangian
+perspective, and actually associate computational particles with
+material points.  This makes it easy to deal with the left-hand side
+of the Navier-Stokes equation.
+
+To compute the spatial derivatives on the right hand side of the
+equation, we interpolate pressures and velocities at the material
+particles to get smoothed fields (hence the name).  Then we
+differentiate the smoothed fields.
+For example, suppose we care about some scalar field $A(\bfr)$.
+Each particle $j$ has a mass $m_j$, a location $\bfr_j$, and
+a value $A_j = A(\bfr_j)$.  Between particles, we write
+\begin{equation} \label{eq-basic-interp}
+  A_S(\bfr) = \sum_{j} m_j \frac{A_j}{\rho_j} W(\bfr - \bfr_j, h),
+\end{equation}
+where $W$ is a smoothing kernel with radius $h$.  The densities
+$\rho_j$ that appear in \eqref{eq-basic-interp} are themselves are 
+computed using \eqref{eq-basic-interp}:
+\[
+  \rho_i 
+  = \rho_S(\bfr_i) 
+  = \sum_{j} m_j \frac{\rho_j}{\rho_j} W(\bfr - \bfr_j, h),
+  = \sum_{j} m_j W(\bfr - \bfr_j, h).
+\]
+
+Putting everything together, the SPH approximation computes field
+quantities at locations associated with computational particles.
+The governing equations for the particles and the associated quantities
+are then
+\begin{align}
+  \rho_i \bfa_i &= 
+    \bff_i^{\mathrm{pressure}} + 
+    \bff_i^{\mathrm{viscosity}} + \rho_i \bfg 
+    \label{eq-particle-evolve} \\
+  \bff_i^{\mathrm{pressure}}  &= 
+    -\sum_j m_j \frac{p_i+p_j}{2 \rho_j} \nabla W(\bfr_i-\bfr_j, h) 
+    \label{eq-pressure-force} \\
+  \bff_i^{\mathrm{viscosity}} &=
+    \mu \sum_j m_j \frac{\bfv_j-\bfv_i}{\rho_j} \nabla^2 W(\bfr_i-\bfr_j, h),
+    \label{eq-viscous-force}
+\end{align}
+where the pressure and viscous interaction terms have been symmetrized to
+ensure that particle $i$ acts on particle $j$ in the same way $j$ acts on $i$.
+
+To compute the pressure, we use the ideal gas equation of state
+\begin{equation} \label{eq-eos}
+  p_i = k (\rho_i-\rho_0).
+\end{equation}
+Of course, this is not the right equation of state for a liquid!
+This equation is best regarded as a non-physical approximation that
+is legitimate as long as the artificial speed of sound is much greater
+than the velocities of interest in the problem (as is the case
+with the incompressible approximation that is more commonly used in other
+settings).
+
+\section{Smoothing kernels}
+
+M\"uller describes three radially symmetric different kernels for 3D
+simulation, each with the form
+\[
+  W(\bfr, h) = \frac{1}{Ch^d}
+  \begin{cases}
+    f(q), & 0 \leq q \leq 1 \\
+    0,    & \mbox{otherwise}
+  \end{cases}
+\]
+where $q = \|bfr\|/h$ and $d = 3$ is the dimension.  The kernels are
+based on the choices $\fWps(q) = (1-q^2)^3$ for general interpolation,
+$\fWsp(q) = (1-q)^3$ for interpolating pressures, and $\fWvi(q)$ for
+viscosity computations.  The gradients are given by
+\[
+  \nabla W(\bfr, h) = \frac{\bfr}{Ch^{d+2}}
+  \begin{cases}
+    q^{-1} f'(q), & 0 \leq q \leq 1 \\
+    0,           & \mbox{otherwise}
+  \end{cases}
+\]
+and the Laplacians are
+\[
+  \nabla^2 W(\bfr, h) = \frac{1}{Ch^{d+2}}
+  \begin{cases}
+    f''(q) + (d-1) q^{-1} f'(q), & 0 \leq q \leq 1 \\
+    0,                          & \mbox{otherwise}
+  \end{cases}
+\]
+
+The pressure kernel is designed with relatively steep gradients close
+to the origin to prevent the clustering of computational particles
+that occurs when pressures are interpolated with $\Wps$.  The
+viscosity kernel is designed so that the Laplacian will be positive
+definite, ensuring that we don't accidentally get negative viscous
+contributions that add energy to the system (and compromise
+stability).  Specifically, the viscosity kernel is chosen so that the
+Laplacian will be proportional to $(1-q)$ (so that the kernel
+Laplacian will always be positive) and the kernel and its gradient
+vanish at $q = 1$.  Because the Laplacian is different in two and
+three dimensions, these conditions lead to different functions
+$\fWvi(q)$ in two and three dimensions.  In two dimensions, the
+correct choice is
+\[
+  \fWvi(q) = 
+    \frac{q^2}{4} - \frac{q^3}{9} - \frac{1}{6} \log(q) -\frac{5}{36}.
+\]
+The normalizing constants in two dimensions are determined by
+\[
+  C = \int_{0^1} 2\pi q f(q) \, dq.
+\]
+For our three functions, these constants are
+\begin{align*}
+C_{\mathrm{poly6}} &= \pi/4 \\
+C_{\mathrm{spiky}} &= \pi/10 \\
+C_{\mathrm{viscosity}} &= \pi/40.
+\end{align*}
+
+\section{Condensed interaction force expressions}
+
+Making things completely explicit for the cases we care about most, 
+we have (for $0 \leq q \leq 1$)
+\begin{align}
+  \Wps(\bfr, h) 
+    &= \frac{4}{\pi h^8} (h^2-r^2)^3 
+    \label{eq-Wps-explicit} \\
+  \nabla \Wps(\bfr, h) 
+    &= -\frac{24 \bfr}{\pi h^8} (h^2-r^2)^2
+    \label{eq-grad-Wps-explicit} \\
+  \nabla^2 \Wps(\bfr, h) 
+    &= -\frac{48}{\pi h^8} (h^2-r^2)(h^2-3r^2)
+    \label{eq-laplace-Wps-explicit} \\
+  \nabla \Wsp(\bfr, h) 
+    &= -\frac{30}{\pi h^4} \frac{(1-q)^2}{q} \bfr
+    \label{eq-grad-Wsp-explicit} \\
+  \nabla^2 \Wvi(\bfr, h)
+    &= \frac{40}{\pi h^4} (1-q)
+   \label{eq-laplace-Wvi-explicit}
+\end{align}
+If we substitute \eqref{eq-grad-Wsp-explicit}, \eqref{eq-laplace-Wvi-explicit},
+and the equation of state \eqref{eq-eos} into 
+\eqref{eq-pressure-force} and \eqref{eq-viscous-force}, we have
+\begin{align*}
+  \bff_i^{\mathrm{pressure}}  &= 
+    \frac{15k}{\pi h^4} \sum_{j \in N_i} m_j 
+    \frac{\rho_i+\rho_j-2\rho_0}{\rho_j} \frac{(1-q_{ij})^2}{q_{ij}} \bfr_{ij} \\
+  \bff_i^{\mathrm{viscosity}} &=
+    \frac{40 \mu}{\pi h^4} \sum_{j \in N_i} m_j 
+    \frac{\bfv_i-\bfv_j}{\rho_j} (1-q_{ij})
+\end{align*}
+where $N_i$ is the set of particles within $h$ of particle $i$ and
+$q_{ij} = \|\bfr_{ij}\|/h$, $\bfr_{ij} = \bfr_i-\bfr_j$.
+Putting these terms together, we have
+\[
+  \bff_i^{\mathrm{pressure}} + \bff_i^{\mathrm{viscosity}} =
+    \sum_{j \in N_i} \bff_{ij}^{\mathrm{interact}}
+\]
+where
+\[
+  \bff_{ij}^{\mathrm{interact}} =
+  \frac{m_j}{\pi h^4 \rho_j} (1-q_{ij}) \left[
+    15k (\rho_i + \rho_j - 2 \rho_0) \frac{(1-q_{ij})}{q_{ij}} \bfr_{ij} -
+    40\mu \bfv_{ij}
+  \right],
+\]
+and $\bfv_{ij} = \bfv_i - \bfv_j$.  We then rewrite \eqref{eq-particle-evolve}
+as
+\[
+  \bfa_i = \frac{1}{\rho_i} \sum_{j \in N_i} \bff_{ij}^{\mathrm{interact}} + \bfg.
+\]
+
+\input{check_derivation.tex}
+
+\end{document}

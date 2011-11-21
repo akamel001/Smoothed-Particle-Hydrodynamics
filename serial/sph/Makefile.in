@@ -1,0 +1,5 @@
+# -- Compile settings for the cluster
+CC       = /usr/bin/gcc
+CFLAGS   = -std=gnu99 -Wall -g
+OPTFLAGS = -O3
+LIBS     = -lm

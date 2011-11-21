@@ -1,0 +1,4 @@
+CC       = gcc
+CFLAGS   = -std=gnu99 -Wall -g -fopenmp
+OPTFLAGS = -O3 -funroll-loops 
+LIBS     = -lm

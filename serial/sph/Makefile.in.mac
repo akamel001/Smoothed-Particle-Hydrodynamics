@@ -1,0 +1,5 @@
+# -- Compile settings for my laptop
+CC       = gcc
+CFLAGS   = -std=gnu99 -Wall -g
+OPTFLAGS = -O3
+LIBS     = -lm
